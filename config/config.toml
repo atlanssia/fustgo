@@ -1,0 +1,17 @@
+[source]
+type = "http"
+url = "http://example.com/data"
+
+[processor]
+type = "base"
+
+[sink]
+type = "database"
+host = "localhost"
+port = 3306
+username = "root"
+password = "password"
+database = "testdb"
+
+[processor.clean_processor]
+enabled = true
