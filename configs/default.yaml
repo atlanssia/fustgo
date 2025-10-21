@@ -1,0 +1,86 @@
+# FustGo DataX Configuration
+# Standalone Mode Configuration
+
+server:
+  port: 8080
+  mode: production
+  host: 0.0.0.0
+
+database:
+  type: sqlite
+  path: ./fustgo.db
+  pool_size: 20
+
+cache:
+  type: memory
+
+queue:
+  type: channel
+
+worker:
+  max_concurrent_jobs: 5
+  heartbeat_interval: 10s
+  task_poll_interval: 5s
+  worker_count: 4
+
+observability:
+  logs:
+    local:
+      enabled: true
+      path: /var/log/fustgo
+      max_size: 100MB
+      max_age: 7
+      max_backups: 10
+      compress: true
+    openobserve:
+      enabled: false
+      endpoint: http://localhost:5080
+      organization: default
+      stream: fustgo_logs
+      username: admin@example.com
+      password: changeme
+      batch_size: 100
+      flush_interval: 5s
+  
+  metrics:
+    openobserve:
+      enabled: false
+      endpoint: http://localhost:5080/api/default/prometheus/api/v1/write
+      push_interval: 15s
+      username: admin@example.com
+      password: changeme
+  
+  traces:
+    openobserve:
+      enabled: false
+      endpoint: http://localhost:5080
+      organization: default
+      username: admin@example.com
+      password: changeme
+
+deployment:
+  mode: standalone
+  role: master
+
+plugins:
+  enabled:
+    input:
+      - mysql
+      - postgresql
+      - http
+      - csv
+      - json
+    processor:
+      - filter
+      - mapping
+      - transform
+      - enrichment
+    output:
+      - mysql
+      - postgresql
+      - csv
+      - json
+  disabled:
+    input: []
+    processor: []
+    output: []

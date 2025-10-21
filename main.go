@@ -1,56 +1,91 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"github.com/atlanssia/fustgo/source"
-	"github.com/atlanssia/fustgo/sink"
-	"github.com/atlanssia/fustgo/processor"
-	"github.com/BurntSushi/toml"
-	"io/ioutil"
 	"os"
+
+	"github.com/atlanssia/fustgo/internal/config"
+	"github.com/atlanssia/fustgo/internal/database"
+	"github.com/atlanssia/fustgo/internal/logger"
 )
 
-// Config 定义配置文件结构
-type Config struct {
-	Source map[string]interface{} `toml:"source"`
-	Sink   map[string]interface{} `toml:"sink"`
-}
+var (
+	version   = "0.1.0"
+	configFile string
+	showVersion bool
+)
 
-// loadConfig 根据文件类型加载配置文件
-func loadConfig(filename string) (*Config, error) {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var config Config
-	if _, err := toml.Decode(string(data), &config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
+func init() {
+	flag.StringVar(&configFile, "config", "configs/default.yaml", "Path to configuration file")
+	flag.BoolVar(&showVersion, "version", false, "Show version information")
 }
 
 func main() {
-	fmt.Println("Fustgo Data Sync System")
+	flag.Parse()
 
-	// 加载配置文件
-	config, err := loadConfig("config/config.toml") // 配置文件路径更新为 config/config.toml
+	if showVersion {
+		fmt.Printf("FustGo DataX version %s\n", version)
+		os.Exit(0)
+	}
+
+	fmt.Println("=", "="*50)
+	fmt.Println("  FustGo DataX - ETL/ELT Data Synchronization System")
+	fmt.Printf("  Version: %s\n", version)
+	fmt.Println("=", "="*50)
+
+	// Load configuration
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		fmt.Println("Failed to load config:", err)
+		fmt.Printf("Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	// 根据配置创建源和目标
-	src := source.NewSource(config.Source)
-	snk := sink.NewSink(config.Sink)
-	proc := processor.NewProcessor()
+	if err := cfg.Validate(); err != nil {
+		fmt.Printf("Invalid configuration: %v\n", err)
+		os.Exit(1)
+	}
 
-	src.Connect()
-	snk.Connect()
+	// Initialize logger
+	log, err := logger.NewLogger(
+		"fustgo",
+		cfg.Observability.Logs.Local.Enabled,
+		cfg.Observability.Logs.Local.Path+"/fustgo.log",
+	)
+	if err != nil {
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer log.Close()
+	logger.SetDefaultLogger(log)
 
-	// 读取、处理、写入数据
-	data, _ := src.Read()
-	processedData, _ := proc.Process(data)
-	snk.Write(processedData)
+	log.Info("Starting FustGo DataX v%s", version)
+	log.Info("Deployment mode: %s", cfg.Deployment.Mode)
+	log.Info("Database type: %s", cfg.Database.Type)
+
+	// Initialize database
+	var metaStore database.MetadataStore
+	switch cfg.Database.Type {
+	case "sqlite":
+		metaStore, err = database.NewSQLiteStore(cfg.Database.Path)
+		if err != nil {
+			log.Fatal("Failed to initialize SQLite store: %v", err)
+		}
+		log.Info("Using SQLite database: %s", cfg.Database.Path)
+	default:
+		log.Fatal("Unsupported database type: %s", cfg.Database.Type)
+	}
+	defer metaStore.Close()
+
+	log.Info("Metadata store initialized successfully")
+
+	// TODO: Start web server
+	// TODO: Start worker pool
+	// TODO: Start scheduler
+
+	log.Info("FustGo DataX is ready")
+	log.Info("Web UI available at: http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+
+	// Keep running
+	select {}
 }
