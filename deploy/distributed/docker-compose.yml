@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # Master node - Job scheduler and API
+  fustgo-master:
+    image: fustgo:latest
+    container_name: fustgo-master
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - FUSTGO_MODE=distributed
+      - FUSTGO_ROLE=master
+      - FUSTGO_DB_TYPE=postgres
+      - FUSTGO_DB_HOST=postgres
+      - FUSTGO_DB_PORT=5432
+      - FUSTGO_DB_NAME=fustgo
+      - FUSTGO_DB_USER=fustgo
+      - FUSTGO_DB_PASSWORD=fustgo123
+      - FUSTGO_REDIS_HOST=redis
+      - FUSTGO_REDIS_PORT=6379
+      - FUSTGO_LOG_LEVEL=info
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./config:/config
+      - ./logs/master:/logs
+    networks:
+      - fustgo-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Worker node 1
+  fustgo-worker-1:
+    image: fustgo:latest
+    container_name: fustgo-worker-1
+    restart: unless-stopped
+    environment:
+      - FUSTGO_MODE=distributed
+      - FUSTGO_ROLE=worker
+      - FUSTGO_MASTER_URL=http://fustgo-master:8080
+      - FUSTGO_WORKER_ID=worker-1
+      - FUSTGO_DB_TYPE=postgres
+      - FUSTGO_DB_HOST=postgres
+      - FUSTGO_DB_PORT=5432
+      - FUSTGO_DB_NAME=fustgo
+      - FUSTGO_DB_USER=fustgo
+      - FUSTGO_DB_PASSWORD=fustgo123
+      - FUSTGO_REDIS_HOST=redis
+      - FUSTGO_REDIS_PORT=6379
+      - FUSTGO_LOG_LEVEL=info
+    depends_on:
+      - fustgo-master
+      - postgres
+      - redis
+    volumes:
+      - ./data/worker-1:/data
+      - ./logs/worker-1:/logs
+    networks:
+      - fustgo-net
+
+  # Worker node 2
+  fustgo-worker-2:
+    image: fustgo:latest
+    container_name: fustgo-worker-2
+    restart: unless-stopped
+    environment:
+      - FUSTGO_MODE=distributed
+      - FUSTGO_ROLE=worker
+      - FUSTGO_MASTER_URL=http://fustgo-master:8080
+      - FUSTGO_WORKER_ID=worker-2
+      - FUSTGO_DB_TYPE=postgres
+      - FUSTGO_DB_HOST=postgres
+      - FUSTGO_DB_PORT=5432
+      - FUSTGO_DB_NAME=fustgo
+      - FUSTGO_DB_USER=fustgo
+      - FUSTGO_DB_PASSWORD=fustgo123
+      - FUSTGO_REDIS_HOST=redis
+      - FUSTGO_REDIS_PORT=6379
+      - FUSTGO_LOG_LEVEL=info
+    depends_on:
+      - fustgo-master
+      - postgres
+      - redis
+    volumes:
+      - ./data/worker-2:/data
+      - ./logs/worker-2:/logs
+    networks:
+      - fustgo-net
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fustgo-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=fustgo
+      - POSTGRES_USER=fustgo
+      - POSTGRES_PASSWORD=fustgo123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - fustgo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fustgo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for task queue
+  redis:
+    image: redis:7-alpine
+    container_name: fustgo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - fustgo-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenObserve for observability
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: fustgo-openobserve
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    environment:
+      - ZO_ROOT_USER_EMAIL=admin@fustgo.com
+      - ZO_ROOT_USER_PASSWORD=admin123
+      - ZO_DATA_DIR=/data
+    volumes:
+      - openobserve-data:/data
+    networks:
+      - fustgo-net
+
+networks:
+  fustgo-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  openobserve-data:

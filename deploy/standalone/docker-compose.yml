@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  fustgo:
+    image: fustgo:latest
+    container_name: fustgo-standalone
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - FUSTGO_MODE=standalone
+      - FUSTGO_DB_TYPE=sqlite
+      - FUSTGO_DB_PATH=/data/fustgo.db
+      - FUSTGO_LOG_PATH=/var/log/fustgo
+      - FUSTGO_OPENOBSERVE_ENABLED=true
+      - FUSTGO_OPENOBSERVE_ENDPOINT=http://openobserve:5080
+    volumes:
+      - fustgo_data:/data
+      - fustgo_logs:/var/log/fustgo
+      - ../../configs:/app/configs:ro
+    networks:
+      - fustgo_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - openobserve
+
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: openobserve
+    ports:
+      - "5080:5080"
+    environment:
+      - ZO_ROOT_USER_EMAIL=admin@fustgo.local
+      - ZO_ROOT_USER_PASSWORD=changeme
+      - ZO_DATA_DIR=/data
+    volumes:
+      - openobserve_data:/data
+    networks:
+      - fustgo_network
+    restart: unless-stopped
+
+volumes:
+  fustgo_data:
+  fustgo_logs:
+  openobserve_data:
+
+networks:
+  fustgo_network:
+    driver: bridge

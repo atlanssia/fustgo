@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  fustgo:
+    image: fustgo:latest
+    container_name: fustgo-lightweight
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - FUSTGO_MODE=lightweight
+      - FUSTGO_DB_TYPE=sqlite
+      - FUSTGO_DB_PATH=/data/fustgo.db
+      - FUSTGO_LOG_LEVEL=info
+      - FUSTGO_HOST=0.0.0.0
+      - FUSTGO_PORT=8080
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+      - ./config:/config
+    networks:
+      - fustgo-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  fustgo-net:
+    driver: bridge
+
+volumes:
+  data:
+  logs:
